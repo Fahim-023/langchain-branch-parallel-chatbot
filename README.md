@@ -2,19 +2,21 @@
 
 An AI chatbot built with LangChain that demonstrates conditional routing (`RunnableBranch`), simultaneous multi-output generation (`RunnableParallel`), and schema-validated responses (Pydantic structured output), wrapped in a Streamlit chat interface.
 
+**Live demo:** https://langchain-branch-parallel-chatbot-aatvnwjs6ghapg7xfrggsc.streamlit.app/
+
 ## Project Overview
 
-This project routes user questions to one of four specialized prompt pipelines based on the content of the question, generates a structured, schema-validated answer alongside an independently generated follow-up question suggestion, and displays everything through an interactive Streamlit chat UI.
+This project routes user questions to one of four specialized prompt pipelines based on the content of the question, generates a structured, schema-validated answer alongside an independently generated plain-text summary, and displays everything through an interactive Streamlit chat UI.
 
 The chatbot is powered by Groq's `openai/gpt-oss-20b` model via the `langchain-groq` integration, chosen for its speed and native support for structured outputs.
 
 ## Features
 
 - **Four-way conditional routing** via `RunnableBranch` — Programming, Mathematics, English, and General queries each get a specialized prompt.
-- **Parallel output generation** via `RunnableParallel` — the main structured answer and a follow-up question suggestion are generated independently from the same input.
+- **Parallel output generation** via `RunnableParallel` — the main structured answer and an independent summary are generated simultaneously from the same input.
 - **Schema-validated responses** via Pydantic (`with_structured_output`) — every main answer includes an answer, summary, confidence score, category, and keywords, all type-checked.
-- **Streamlit chat interface** — persistent chat history, a live "Thinking…" spinner, an expandable follow-up section, and a Clear Chat button.
-- **Secure API key handling** — the Groq API key is loaded from a `.env` file and never hardcoded or committed.
+- **Streamlit chat interface** — persistent chat history, a live "Thinking…" spinner, an expandable summary section, and a Clear Chat button.
+- **Secure API key handling** — the Groq API key is loaded from a `.env` file locally (or Streamlit Secrets when deployed) and never hardcoded or committed.
 
 ## RunnableBranch Implementation
 
@@ -36,7 +38,7 @@ This satisfies FR-4: different prompt pipelines are executed depending on user i
 `RunnableParallel` runs two independent chains on the same user question simultaneously:
 
 - `answer` — the routed, schema-validated response from `branch`
-- `summary` — a plain-text, independently generated follow-up/summary output
+- `summary` — a separately generated, plain-text summary of the answer
 
 ```python
 chat_parallel = RunnableParallel(
@@ -45,11 +47,11 @@ chat_parallel = RunnableParallel(
 )
 ```
 
-Both chains execute off the identical input dictionary (`{"question": ...}`) but produce separate, unrelated outputs in a single `.invoke()` call, satisfying FR-5.
+Both chains execute off the identical input dictionary (`{"question": ...}`) but produce separate, independent outputs in a single `.invoke()` call, satisfying FR-5. `answer` uses the schema-bound LLM while `summary` uses the plain LLM, since a one-line summary doesn't need the full structured schema.
 
 ## Pydantic Structured Output Implementation
 
-A `ResponseSchema` class defines the exact shape every main answer must conform to:
+A `ResponseSchema` class defines the exact shape the main answer must conform to:
 
 ```python
 class ResponseSchema(BaseModel):
@@ -60,17 +62,17 @@ class ResponseSchema(BaseModel):
     keywords: List[str]
 ```
 
-The LLM is bound to this schema using `llm.with_structured_output(ResponseSchema)`, so every branch chain returns a validated `ResponseSchema` object instead of raw text — satisfying FR-3. `StrOutputParser` alone is not used anywhere in the response pipeline, per the assignment's requirement.
+The LLM is bound to this schema using `llm.with_structured_output(ResponseSchema)`, so the routed answer chain returns a validated `ResponseSchema` object instead of raw text — satisfying FR-3. `StrOutputParser` alone is not used anywhere in the response pipeline, per the assignment's requirement.
 
 ## Project Structure
 
 ```
 project/
 │
-├── app.py              # Streamlit UI
-├── chatbot.py           # RunnableBranch, RunnableParallel, structured output wiring
-├── prompts.py            # PromptTemplates for each branch
-├── schemas.py            # Pydantic response schema
+├── app.py             # Streamlit UI
+├── chatbot.py          # RunnableBranch, RunnableParallel, structured output wiring
+├── prompts.py           # PromptTemplates for each branch
+├── schemas.py           # Pydantic response schema
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -108,6 +110,10 @@ project/
    ```bash
    streamlit run app.py
    ```
+
+## Deployment
+
+The app is deployed on Streamlit Community Cloud. The `GROQ_API_KEY` is configured via Streamlit's Secrets manager rather than a committed `.env` file.
 
 ## Notes
 
